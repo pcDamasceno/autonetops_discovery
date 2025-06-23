@@ -4,8 +4,9 @@ from dataclasses import dataclass
 from slugify import slugify
 from netbox_classes import *
 from connector import NetworkCollector
-from typing import Optional, List, Enum
-
+from credentials import Credentials
+from typing import Optional, List
+import ipdb
 
 class Site(NbSiteMixin):
     def __init__(self, name: str, slug=None, status="active"):
@@ -66,6 +67,8 @@ class Device(NbDeviceMixin):
         self.version = None
 
         self.interfaces = List[Interface]
+        self.credentials: Optional[Credentials | List[Credentials]] = None
+        
 
     def __str__(self):
         return f"{self.name} - {self.mgmt_ip} - {self.device_type}"
@@ -73,30 +76,38 @@ class Device(NbDeviceMixin):
     def __repr__(self):
         return f"{self.name} - {self.mgmt_ip} - {self.device_type}"
 
-    def get_network_info(
-        self,
-        host: str,
-        username: str,
-        password: str,
-        device_type: str,
-        library: Optional[str] = None,
-    ) -> None:
+    def set_credentials(self, username: str, password: str) -> None:
+        self.credentials = Credentials(username, password)
+
+    def get_network_info(self, library) -> None:
 
         connect_info = {
-            "host": host,
-            "username": username,
-            "password": password,
-            "device_type": device_type,
+            "host": self.mgmt_ip,
+            "username": self.credentials.username,
+            "password": self.credentials.password,
+            "device_type": self.device_type,
             "library": library,
         }
 
-        with NetworkCollector(**connect_info) as conn:
-            self.device_type = conn.get_facts()
+        try:
+            with NetworkCollector(**connect_info) as conn:
+                print("Getting network facts...")
+                facts = conn.get_facts()
+                self.serial = facts.get("serial_number")
+                self.version = facts.get("os_version")
+                self.fqdn = facts.get("fqdn")
+                interfaces = facts.get("interfaces", [])
+                if interfaces:
+                    self.interfaces = [
+                        Interface(name=interface) for interface in interfaces
+                    ]
+        except Exception as e:
+            print(f"Error collecting network info for {self.name}: {e}")
 
     def join_site(self, site):
         if isinstance(site, Site):
             self.site = site
-            site.add_device(self)
+            site.device_add(self)
         else:
             raise TypeError("site must be an instance of Site")
 
@@ -129,7 +140,7 @@ class Platform:
 
 
 class Interface:
-    def __init__(self, name, type):
+    def __init__(self, name, type="Unknown"):
         self.name = name
         self.type = type
 

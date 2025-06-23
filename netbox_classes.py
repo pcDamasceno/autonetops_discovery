@@ -18,7 +18,7 @@ class NbConnection:
         """
         if not self.url or not self.token:
             raise ValueError("URL and token must be provided for NetBox connection.")
-        self.nb = pynetbox.api(self.url, token=self.token)
+        self.nb = pynetbox.api(self.url, token=self.token, strict_filters=True)
 
     def get_nb(self):
         return self.nb

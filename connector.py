@@ -48,11 +48,24 @@ class NapalmDriver(NetworkDriver):
         self.driver = None
         self.device = None
 
+    def _netmiko_device_type_to_driver(self, device_type: str) -> str:
+        """Map Netmiko device type to a more generic driver name."""
+        device_type_mapping = {
+            "cisco_ios": "ios",
+            "cisco_nxos": "nxos_ssh",
+            "arista_eos": "eos",
+            "juniper": "junos",
+            "juniper_junos": "junos",
+            # Add more mappings as needed
+        }
+        return device_type_mapping.get(device_type, device_type)
+
     def connect(
         self, host: str, username: str, password: str, device_type: str
     ) -> None:
+        napalm_driver = self._netmiko_device_type_to_driver(device_type)
         try:
-            driver = napalm.get_network_driver(device_type)
+            driver = napalm.get_network_driver(napalm_driver)
             self.device = driver(hostname=host, username=username, password=password)
             self.device.open()
             logger.info(f"Connected to {host} via NAPALM")
@@ -97,7 +110,7 @@ class NetmikoDriver(NetworkDriver):
 
     def connect(
         self, host: str, username: str, password: str, device_type: str
-    ) -> None:
+    ) -> None:        
         try:
             self.conn = netmiko.ConnectHandler(
                 device_type=device_type, host=host, username=username, password=password
@@ -150,27 +163,27 @@ class NetworkCollector:
 
     def __init__(
         self,
-        driver_name: str,
         host: str,
         username: str,
         password: str,
         device_type: str,
+        library: str = "netmiko"  # Default to Netmiko, can be overridden
     ):
         """
         Initialize the NetworkCollector.
 
         Args:
-            driver_name (str): The name of the driver (e.g., "napalm", "netmiko").
             host (str): The device hostname or IP.
             username (str): The username for authentication.
             password (str): The password for authentication.
             device_type (str): The device type (e.g., "cisco_ios", "juniper").
+            library (str): The name of the driver (e.g., "napalm", "netmiko").
         """
-        if driver_name not in self.LIBRARY:
+        if library not in self.LIBRARY:
             raise ValueError(
-                f"Unsupported driver: {driver_name}. Supported: {list(self.LIBRARY.keys())}"
+                f"Unsupported driver: {library}. Supported: {list(self.LIBRARY.keys())}"
             )
-        self.driver = self.LIBRARY[driver_name]()
+        self.driver = self.LIBRARY[library]()
         self.host = host
         self.username = username
         self.password = password
@@ -193,11 +206,11 @@ class NetworkCollector:
         """Retrieve device facts."""
         return self.driver.get_facts()
 
-    def get_interfaces(self) -> List[Dict[str, Any]]:
+    def get_interfaces_ip(self) -> List[Dict[str, Any]]:
         """Retrieve interface information."""
         return self.driver.get_interfaces()
 
-    def get_config(self) -> str:
+    def get_lldp_neighbors(self) -> str:
         """Retrieve the device configuration."""
         return self.driver.get_config()
 

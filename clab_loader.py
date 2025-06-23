@@ -1,6 +1,7 @@
 import yaml
 from classes import Site, Device
 from slugify import slugify
+import ipdb
 
 with open(
     "/home/pdamasceno/GIT/autonetops-GIT/autonetops_free_labs/autonetops_bgp_fundamentals/bgp-med/clab/lab.clab.yaml",
@@ -43,6 +44,8 @@ device_list = get_device_list(clab_yaml)
 site = Site(name=clab_yaml["name"], slug=slugify(clab_yaml["name"]))
 for device in device_list:
     new_device = Device(name=device["name"])
-    new_device.device_type = device["kind"]
+    new_device.device_type = device["driver"]
     new_device.mgmt_ip = device["ip"]
     new_device.join_site(site)
+
+ipdb.set_trace()
